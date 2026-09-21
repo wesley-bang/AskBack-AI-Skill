@@ -12,7 +12,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 def run(command):
     print("+", " ".join(str(item) for item in command), flush=True)
-    subprocess.run(command, check=True)
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(f"pipeline stopped at {pathlib.Path(command[1]).name} (exit {exc.returncode})") from exc
 
 
 def main():
