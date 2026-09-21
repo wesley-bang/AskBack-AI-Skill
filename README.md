@@ -6,19 +6,21 @@
 
 請完整閱讀 [`SKILL.md`](SKILL.md)，再按照其中的流程執行。不要要求使用者補充另一份提示；`input/` 內的 `case_input.json`、`prefix.mp4` 與可選的 `prefix.vtt` 就是唯一輸入。
 
-最短流程如下：
+最短流程如下（有 `OPENAI_API_KEY` 時可直接端到端執行）：
 
 ```bash
-python3 scripts/inspect_input.py --input input --work work
-# 讀取 work/analysis.json、work/frames/ 與 input/case_input.json
-# 以 agent 的多模態/音訊能力理解影片，建立 work/storyboard.json
-# 產生 work/audio/scene_XX.wav（使用可用的 TTS 工具）
-python3 scripts/render_video.py \
-  --storyboard work/storyboard.json \
-  --workdir work \
-  --output outputs/askback.mp4
-python3 scripts/validate_output.py outputs/askback.mp4
+python3 scripts/run_pipeline.py --input input --work work --output outputs/askback.mp4
 ```
+
+`run_pipeline.py` 會依序檢查輸入、產生 storyboard、呼叫 OpenAI-compatible
+Chat Completions 分析代表畫面、用 OpenAI Speech API 產生繁中語音、渲染並驗證
+MP4。預設讀取 `OPENAI_API_KEY`；可用 `OPENAI_BASE_URL`、`ASKBACK_LLM_MODEL`、
+`ASKBACK_TTS_MODEL` 和 `ASKBACK_TTS_VOICE` 改用相容端點或指定模型。金鑰只從
+環境變數讀取，不會寫進檔案。
+
+如果執行環境的 agent 本身已經能理解影片並產生 TTS，agent 可以手動建立
+`work/storyboard.json` 與 `work/audio/scene_XX.wav`，再執行 `render_video.py` 和
+`validate_output.py`。沒有 TTS 金鑰時，程式會明確停止，不會用靜音或測試音效冒充教學語音。
 
 如果系統沒有套件：
 
@@ -51,4 +53,3 @@ input/
 將作業提供的一題資料放成 `input/` 後執行上述流程。`scripts/inspect_input.py` 會擷取代表畫面與影片 metadata；`scripts/render_video.py` 會把 storyboard 和 TTS 音檔穩定合成 MP4。
 
 完整的教育內容判斷、腳本撰寫、畫面素材生成與 TTS 供應商選擇，請遵照 `SKILL.md`。不要把 API key 寫入 repo。
-

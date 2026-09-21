@@ -15,6 +15,17 @@
 
 ## 執行流程
 
+若要由單一指令完成工程流程，先確認環境提供 `OPENAI_API_KEY`，再執行：
+
+```bash
+python3 scripts/run_pipeline.py --input input --work work --output outputs/askback.mp4
+```
+
+此入口會呼叫 `inspect_input.py`、`generate_storyboard.py`、`generate_tts.py`、
+`render_video.py` 和 `validate_output.py`。LLM 與 TTS 只透過環境變數呼叫，絕不把
+金鑰放入 repo。若 agent 能直接使用自己的多模態理解與語音工具，也可以跳過兩個
+生成腳本，手動產生相同格式的 storyboard 與 audio，再執行渲染和驗證。
+
 ### 1. 讀取並檢查輸入
 
 先執行：
@@ -28,6 +39,11 @@ python3 scripts/inspect_input.py --input input --work work
 - `input/case_input.json`：問題、提問秒數、年段、科目、已知概念、迷思、前文摘要與風格；
 - `input/prefix.mp4`：只到提問時間的影片；
 - `input/prefix.vtt`：若存在，這是只到提問時間的人工字幕。
+
+`generate_storyboard.py` 會把最多六張由 `inspect_input.py` 擷取的代表畫面、case
+與（若有）prefix 字幕送給 OpenAI-compatible Chat Completions。沒有 API key 時，
+只有 V08 提供離線參考草稿，其他題目會停止並要求 agent 先完成內容判斷；這是刻意
+的安全設計，避免把不一定正確的通用答案當成教學影片。
 
 檢查 `work/analysis.json` 與 `work/frames/`。有字幕時，先以字幕建立內容時間線，再用畫面核對；沒有字幕時，必須以影片音訊與畫面理解原講解，不能因為沒有字幕就猜測。
 
@@ -84,6 +100,10 @@ work/audio/scene_02.wav
 
 TTS 必須使用一般合成聲音。聲音清楚、語速適中，場景之間不需要模仿原講者。若 TTS 工具輸出 MP3 或 M4A，直接放入 `work/audio/` 也可以，渲染器會交給 ffmpeg 處理。
 
+內建 `generate_tts.py` 使用 OpenAI Speech API，預設模型為 `tts-1`、聲音為
+`alloy`；可透過 `ASKBACK_TTS_MODEL` 與 `ASKBACK_TTS_VOICE` 調整。若改用其他
+TTS，請將每個場景輸出為 `work/audio/scene_01.wav`（或 mp3/m4a/flac/ogg）。
+
 ### 6. 渲染與迭代
 
 執行：
@@ -109,4 +129,3 @@ python3 scripts/validate_output.py outputs/askback.mp4
 - 是否真的銜接到原影片下一個教學步驟？
 - 是否同時符合年段、科目、原影片風格和 30–90 秒限制？
 - 是否有「AI 生成教學示範，非原講者本人」？
-

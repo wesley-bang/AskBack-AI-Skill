@@ -7,6 +7,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import os
 
 
 DISCLAIMER = "AI 生成教學示範，非原講者本人"
@@ -28,6 +29,9 @@ def get_duration(path):
 
 
 def font_path():
+    configured = os.environ.get("ASKBACK_FONT_PATH")
+    if configured and pathlib.Path(configured).exists():
+        return configured
     candidates = [
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
@@ -39,6 +43,76 @@ def font_path():
         if pathlib.Path(candidate).exists():
             return candidate
     return None
+
+
+def draw_arrow(draw, start, end, fill=(210, 70, 56), width=6):
+    import math
+    draw.line((start[0], start[1], end[0], end[1]), fill=fill, width=width)
+    angle = math.atan2(end[1] - start[1], end[0] - start[0])
+    size = 18
+    points = [
+        end,
+        (end[0] - size * math.cos(angle - 0.5), end[1] - size * math.sin(angle - 0.5)),
+        (end[0] - size * math.cos(angle + 0.5), end[1] - size * math.sin(angle + 0.5)),
+    ]
+    draw.polygon(points, fill=fill)
+
+
+def draw_tube(draw, x, top, width, height, mercury_height, font, label):
+    outline = (48, 55, 65)
+    mercury = (188, 192, 198)
+    draw.rounded_rectangle((x, top, x + width, top + height), radius=width // 2,
+                           outline=outline, width=4, fill=(242, 231, 214))
+    bottom = top + height - 8
+    mercury_top = bottom - mercury_height
+    draw.rectangle((x + 5, mercury_top, x + width - 5, bottom), fill=mercury)
+    draw.line((x + 5, mercury_top, x + width - 5, mercury_top), fill=outline, width=3)
+    draw.text((x + width // 2 - 26, bottom + 14), label, fill=outline, font=font)
+
+
+def draw_diagram(draw, scene, font, small_font, width=1280, height=720):
+    """Draw exact symbols and comparisons instead of asking an image model to typeset them."""
+    diagram = scene.get("diagram")
+    if not diagram:
+        return
+    ink = (45, 54, 65)
+    red = (211, 75, 61)
+    blue = (48, 110, 160)
+    x0, y0 = 735, 182
+    if diagram == "tube_compare":
+        draw_tube(draw, x0, y0, 72, 300, 155, small_font, "細管")
+        draw_tube(draw, x0 + 190, y0, 125, 300, 155, small_font, "粗管")
+        draw.line((x0 - 18, y0 + 145, x0 + 330, y0 + 145), fill=red, width=3)
+        draw.text((x0 + 80, y0 + 100), "76 cm", fill=red, font=small_font)
+        draw.text((x0 + 57, y0 - 45), "高度相同", fill=ink, font=font)
+    elif diagram == "force_area":
+        draw_tube(draw, x0, y0 + 30, 70, 260, 120, small_font, "小 A")
+        draw_tube(draw, x0 + 210, y0, 130, 290, 145, small_font, "大 A")
+        draw_arrow(draw, (x0 + 35, y0 + 125), (x0 + 35, y0 + 245), blue)
+        draw_arrow(draw, (x0 + 275, y0 + 105), (x0 + 275, y0 + 255), blue, 8)
+        draw.text((x0 + 12, y0 + 305), "F", fill=blue, font=font)
+        draw.text((x0 + 252, y0 + 305), "2F", fill=blue, font=font)
+        draw.text((x0 + 74, y0 + 365), "A  →  2A", fill=red, font=font)
+    elif diagram == "pressure_formula":
+        draw.rounded_rectangle((x0 - 15, y0 + 15, x0 + 425, y0 + 125), radius=18,
+                               fill=(255, 245, 224), outline=ink, width=3)
+        draw.text((x0 + 35, y0 + 42), "P = F / A", fill=ink, font=font)
+        draw.text((x0 + 22, y0 + 180), "2F / 2A = F / A", fill=red, font=font)
+        draw.text((x0 + 30, y0 + 300), "壓力不變", fill=blue, font=font)
+    elif diagram == "tube_long":
+        draw_tube(draw, x0, y0 + 65, 72, 230, 120, small_font, "短管")
+        draw_tube(draw, x0 + 195, y0, 72, 295, 120, small_font, "長管")
+        draw.line((x0 - 15, y0 + 175, x0 + 280, y0 + 175), fill=red, width=3)
+        draw.text((x0 + 80, y0 + 125), "76 cm", fill=red, font=small_font)
+        draw.text((x0 + 100, y0 - 38), "上方是真空", fill=ink, font=small_font)
+    elif diagram == "summary":
+        draw.rounded_rectangle((x0, y0 + 20, x0 + 360, y0 + 110), radius=18,
+                               fill=(222, 239, 249), outline=blue, width=3)
+        draw.text((x0 + 42, y0 + 48), "大氣壓力", fill=blue, font=font)
+        draw_arrow(draw, (x0 + 180, y0 + 155), (x0 + 180, y0 + 235), red)
+        draw.rounded_rectangle((x0, y0 + 270, x0 + 360, y0 + 360), radius=18,
+                               fill=(255, 239, 218), outline=red, width=3)
+        draw.text((x0 + 42, y0 + 298), "76 cm 汞柱", fill=red, font=font)
 
 
 def render_slide(scene, output, workdir, storyboard_dir, width=1280, height=720):
@@ -58,7 +132,7 @@ def render_slide(scene, output, workdir, storyboard_dir, width=1280, height=720)
     if asset_path:
         image = Image.open(asset_path).convert("RGB").resize((width, height))
     else:
-        image = Image.new("RGB", (width, height), (247, 249, 252))
+        image = Image.new("RGB", (width, height), (223, 198, 166))
     draw = ImageDraw.Draw(image)
     font = font_path()
     if not font:
@@ -68,8 +142,9 @@ def render_slide(scene, output, workdir, storyboard_dir, width=1280, height=720)
     small_font = ImageFont.truetype(font, 20)
 
     # A translucent card keeps generated illustrations useful while guaranteeing readable text.
-    draw.rounded_rectangle((56, 42, width - 56, height - 78), radius=24, fill=(255, 255, 255, 232), outline=(44, 62, 80), width=2)
+    draw.rounded_rectangle((56, 42, width - 56, height - 78), radius=24, fill=(255, 252, 246), outline=(44, 62, 80), width=2)
     draw.text((92, 74), scene.get("title", "補充教學"), fill=(24, 53, 82), font=title_font)
+    draw_diagram(draw, scene, body_font, small_font, width, height)
     body = scene.get("body", [])
     if isinstance(body, str):
         body = [body]
@@ -80,7 +155,7 @@ def render_slide(scene, output, workdir, storyboard_dir, width=1280, height=720)
         chunk = ""
         chunks = []
         for char in words:
-            if len(chunk) >= 25:
+            if len(chunk) >= 17:
                 chunks.append(chunk)
                 chunk = ""
             chunk += char
