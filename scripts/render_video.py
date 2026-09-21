@@ -137,7 +137,14 @@ def main():
                         audio_path = candidate
                         break
         else:
-            audio_path = workdir / "audio" / f"scene_{index:02d}.wav"
+            audio_path = None
+            for extension in ("wav", "mp3", "m4a", "flac", "ogg"):
+                candidate = workdir / "audio" / f"scene_{index:02d}.{extension}"
+                if candidate.exists():
+                    audio_path = candidate
+                    break
+            if audio_path is None:
+                audio_path = workdir / "audio" / f"scene_{index:02d}.wav"
         segment = segments_dir / f"scene_{index:02d}.mp4"
         duration = get_duration(audio_path) if audio_path.exists() else None
         if duration is None:
